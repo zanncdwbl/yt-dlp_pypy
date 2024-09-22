@@ -1,0 +1,7 @@
+ArchivedFiles/
+
+# Archives 
+*.txt
+
+secrets.json
+*.bat
