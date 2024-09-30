@@ -1,6 +1,5 @@
-import os, yt_dlp, requests
+import os, yt_dlp
 from defs import *
-from vars import *
 
 class loggerOutput(object):
     def debug(self, msg):
@@ -20,7 +19,7 @@ def hook(d):
         print("\nFinishing:", file_name)
         print("-" * 40)
     elif d["status"] == "error":
-        print(f"Failed to download: {d.get("filename", "Unknown")} - {d["message"]}")
+        print(f"Failed to download: {d.get('filename', 'Unknown')} - {d['message']}")
 
 ydl_opts_main = {
     "outtmpl": os.path.join(music_folder, "%(title)s.%(ext)s"),
@@ -57,24 +56,26 @@ ydl_opts_main = {
     "progress_hooks": [hook],
 }
 
-# Iterate over x playlists from json, make sure that the lists are actually the same size, or else the loop breaks
+#Iterate over x playlists from json, make sure that the lists are actually the same size, or else the loop breaks
 for i, (archive, playlist, playlist_name) in enumerate(zip(archives, playlists, playlist_names)):
     print(f"Processing playlist: {playlist_name}\n\n")
     
     ydl_opts = ydl_opts_main.copy()
     ydl_opts['download_archive'] = archive
 
-    processed_entries, deleted_entries = get_playlist_info([playlist])
-    # add command here to paste out all deleted entries, easier for keeping track
+    processed_entries = get_playlist_info(playlist)
 
-    if i[0]: # Assuming main playlist is index 0
+    if i == 0: # Assuming main playlist is index 0
         try:
             check_titles(processed_entries)
         except DuplicateTitle as e:
             print(e)
+            break
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([playlist])
     else:
-        #do flat playlist stuff here, api call etc
-        print()
+        ytapi_processed = yt_apicall(processed_entries, [])
+        generate_playlist(archive_folder, playlist, ytapi_processed)
+
+    os.remove("thumbnail.png") # Remove Thumbnail
