@@ -56,6 +56,9 @@ ydl_opts_main = {
     "progress_hooks": [hook],
 }
 
+main_playist = playlists[0]
+available_videos = get_playlist_info(main_playist)
+
 #Iterate over x playlists from json, make sure that the lists are actually the same size, or else the loop breaks
 for i, (archive, playlist, playlist_name) in enumerate(zip(archives, playlists, playlist_names)):
     print(f"Processing playlist: {playlist_name}\n\n")
@@ -75,7 +78,12 @@ for i, (archive, playlist, playlist_name) in enumerate(zip(archives, playlists, 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([playlist])
     else:
-        ytapi_processed = yt_apicall(processed_entries, [])
-        generate_playlist(archive_folder, playlist, ytapi_processed)
+        playlist_entries = []
+
+        for video_id in available_videos:
+            if video_id in processed_entries:
+                playlist_entries.append(available_videos[video_id])
+
+        generate_playlist(archive_folder, playlist_name, playlist_entries)
 
     os.remove("thumbnail.png") # Remove Thumbnail

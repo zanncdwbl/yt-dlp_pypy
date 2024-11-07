@@ -14,3 +14,5 @@ Get title, replace special characters > Append duration, title to m3u8 playlist 
 Remove thumbnail that gets downloaded\
 
 Update ReadME
+
+make the api call adhere to the archive.
