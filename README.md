@@ -16,3 +16,4 @@ Remove thumbnail that gets downloaded\
 Update ReadME
 
 make the api call adhere to the archive.
+api call batch request for video ids

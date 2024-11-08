@@ -5,6 +5,8 @@ with open('secrets.json') as f:
 
 api_key = config.get("API_KEY")
 
+channel_name = config.get("CHANNEL_NAME")
+
 music_folder = config.get("MUSIC_FOLDER")
 archive_folder = config.get("ARCHIVE_FOLDER")
 archives = config.get("ARCHIVES", [])

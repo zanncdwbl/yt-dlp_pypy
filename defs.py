@@ -30,20 +30,26 @@ def get_playlist_info(playlist_url, unavailable_files = "unavailable.txt", delet
         duration = entry.get('duration', 0)
 
         #removed status cause its not really needed if we already parse deleted/private etc in flat
-        req = requests.get(f'https://www.googleapis.com/youtube/v3/videos?id={video_id}&part=contentDetails&key={api_key}')
+        req = requests.get(f'https://www.googleapis.com/youtube/v3/videos?id={video_id}&part=contentDetails,snippet&key={api_key}') # remove snippet if you dont have any private songs uploaded
         apidata = req.json()
         apientries = apidata.get('items', [])
 
         if apientries:
+            snippet = apientries[0].get('snippet', {})
+            uploader_name = snippet.get("channelTitle", "")
             content_details = apientries[0].get('contentDetails', {})
             region_restriction = content_details.get('regionRestriction', {})
+            
+            if uploader_name.lower() == f"{channel_name}":
+                available_videos[video_id] = {"title": title, "duration": duration}
+                continue
 
-            if 'blocked' in region_restriction and 'IE' in region_restriction['blocked']:
+            if "blocked" in region_restriction and "IE" in region_restriction["blocked"]:
                 with open(unavailable_files, "a") as f:
                     f.writelines(f"{video_id}, {title}\n")
                 continue
 
-            available_videos[video_id] = {'title': title, 'duration': duration}
+            available_videos[video_id] = {"title": title, "duration": duration}
         else:
             # deleted_entries.append(entry)
             with open(deleted_files, "a") as f:
@@ -52,20 +58,19 @@ def get_playlist_info(playlist_url, unavailable_files = "unavailable.txt", delet
     return available_videos
 
 # This entire function is just to make sure that I won't be overwriting ANY files with the same name.
-def check_titles(processed_entries, output_file="duplicates.txt"):
+def check_titles(available_videos, output_file="duplicates.txt"):
     title_dict = {}
     output_data = []
     duplicates_found = False
 
-    for entry in processed_entries:
-        video_id = entry['id']
+    for video_id, entry in available_videos.items():
         title = entry['title']
 
         if title in title_dict:
             duplicates_found = True
 
             if title_dict[title]['count'] == 1:
-                if {title_dict[title]['video_id']} == {video_id}:
+                if {title_dict[title]['video_id']} == video_id:
                     continue
 
                 output_data.append(f"ORIGINAL - Video ID: {title_dict[title]['video_id']}, Title: {title}\n")

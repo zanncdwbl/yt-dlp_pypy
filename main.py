@@ -66,11 +66,11 @@ for i, (archive, playlist, playlist_name) in enumerate(zip(archives, playlists, 
     ydl_opts = ydl_opts_main.copy()
     ydl_opts['download_archive'] = archive
 
-    processed_entries = get_playlist_info(playlist)
+    available_videos = get_playlist_info(playlist)
 
     if i == 0: # Assuming main playlist is index 0
         try:
-            check_titles(processed_entries)
+            check_titles(available_videos)
         except DuplicateTitle as e:
             print(e)
             break
@@ -81,7 +81,7 @@ for i, (archive, playlist, playlist_name) in enumerate(zip(archives, playlists, 
         playlist_entries = []
 
         for video_id in available_videos:
-            if video_id in processed_entries:
+            if video_id in available_videos:
                 playlist_entries.append(available_videos[video_id])
 
         generate_playlist(archive_folder, playlist_name, playlist_entries)
