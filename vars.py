@@ -8,8 +8,8 @@ api_key = config.get("API_KEY")
 channel_name = config.get("CHANNEL_NAME")
 
 music_folder = config.get("MUSIC_FOLDER")
-archive_folder = config.get("ARCHIVE_FOLDER")
-archives = config.get("ARCHIVES", [])
+m3u8_folder = config.get("M3U8_FOLDER")
+archive = config.get("ARCHIVES")
 playlists = config.get("PLAYLISTS", [])
 playlist_names = config.get("PLAYLIST_NAMES", [])
 
@@ -18,12 +18,9 @@ playlist_names = config.get("PLAYLIST_NAMES", [])
     "API_KEY": "API_KEY HERE FROM YOUTUBE",
 
     "MUSIC_FOLDER": "C:/Users/<user>/Music",
-    "ARCHIVE_FOLDER": "C:/Users/<user>/Music/Archive",
+    "M3U8_FOLDER": "C:/Users/<user>/Music/Archive",
 
-    "ARCHIVES": [
-        "main.txt",
-        "alt.txt",
-    ],
+    "ARCHIVE": "main.txt",
 
     "PLAYLISTS": [
         "https://www.youtube.com/playlist?list=main_playlist",
