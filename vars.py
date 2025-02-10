@@ -1,5 +1,7 @@
 import json
 
+deleteVideos = True
+
 with open('secrets.json') as f:
     config = json.load(f)
 
@@ -9,7 +11,8 @@ channel_name = config.get("CHANNEL_NAME")
 
 music_folder = config.get("MUSIC_FOLDER")
 m3u8_folder = config.get("M3U8_FOLDER")
-archive = config.get("ARCHIVES")
+archive = config.get("ARCHIVE")
+
 playlists = config.get("PLAYLISTS", [])
 playlist_names = config.get("PLAYLIST_NAMES", [])
 
@@ -19,7 +22,6 @@ playlist_names = config.get("PLAYLIST_NAMES", [])
 
     "MUSIC_FOLDER": "C:/Users/<user>/Music",
     "M3U8_FOLDER": "C:/Users/<user>/Music/Archive",
-
     "ARCHIVE": "main.txt",
 
     "PLAYLISTS": [

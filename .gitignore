@@ -5,4 +5,5 @@ ArchivedFiles/
 
 secrets.json
 *.bat
-README.md
+client_secret.json
+*.pickle

@@ -1,4 +1,5 @@
-import os, re, subprocess, json, requests
+import os, re, subprocess, json, requests, pickle
+from google_auth_oauthlib.flow import InstalledAppFlow
 from vars import *
 
 class DuplicateTitle(Exception):
@@ -35,49 +36,74 @@ def change_duration_to_int(duration):
     
     return total_seconds
 
-# Command line instead of python, gets all of the video metadata, sends it into file, which is processed to get entry info in playlist
-def get_playlist_info(playlist_url, unavailable_files = "unavailable.txt", deleted_files = "deleted.txt"):
-    print("Fetching playlist data...")
+# Command line instead of python, gets all of the video metadata, 
+def yt_flat_playlist(playlist_url, playlist_name):
+    print(f"\nProcessing playlist: {playlist_name}\n\n")
     # changed to only get ids, since it gets unavailable videos
     command = f"yt-dlp -no-warnings -i --flat-playlist --print %(id)s -I ::-1 {playlist_url}"
     result = subprocess.run(command, text=True, shell=True, capture_output=True, check=True, errors='ignore')
 
     archive_ids = []
     video_ids = []
-    valid_api_ids = []
-    api_responses = []
-    available_videos = {}
 
-    with open(".mainarchive.txt", "r") as archive:
-        for line in archive:
-            existing_ids = line.strip().replace("youtube ", "")
-            archive_ids.append(existing_ids)
+    try:
+        with open(archive, "r") as archive:
+            for line in archive:
+                existing_ids = line.strip().replace("youtube ", "")
+                archive_ids.append(existing_ids)
+    except:
+        print("No playlist archive found.")
+        pass
 
     for x in result.stdout.strip().splitlines():
         if x not in archive_ids:
             video_ids.append(x)
 
-        # video_ids.append(x)
+    print(f"Total video IDs collected: {len(video_ids)}\n")
 
-    print(f"Total video IDs collected: {len(video_ids)}")
+    return video_ids
+
+SCOPES = ["https://www.googleapis.com/auth/youtube"]
+CREDENTIALS_FILE = "token.pickle"
+
+def authenticate_with_oauth():
+    if os.path.exists(CREDENTIALS_FILE):
+        with open(CREDENTIALS_FILE, "rb") as token:
+            credentials = pickle.load(token)
+    else:
+        flow = InstalledAppFlow.from_client_secrets_file("client_secret.json", SCOPES)
+        credentials = flow.run_local_server(port=0)
+
+        with open(CREDENTIALS_FILE, "wb") as token:
+            pickle.dump(credentials, token)
+
+    return credentials
+
+# Takes video ids and does some checks to send to deleted or unavailable files, and returns other available videos
+def get_playlist_info(playlist_name, headers, video_ids = []):
+    print("Checking for Unavailable videos.")
+
+    unavailable_file = f"unavailableSongs_{playlist_name}.txt"
+    deleted_file = f"deletedSongs_{playlist_name}.txt"
+
+    valid_api_ids = []
+
+    available_videos = {}
+    deleted_ids = []
 
     # #start, end, step
     for i in range(0, len(video_ids), 50):
         batch = video_ids[i:i + 50]
         video_ids_string = ",".join(batch)
 
-        req = requests.get(f'https://www.googleapis.com/youtube/v3/videos?id={video_ids_string}&part=contentDetails,snippet&key={api_key}')
-        req.raise_for_status()
+        response = requests.get(f'https://www.googleapis.com/youtube/v3/videos?id={video_ids_string}&part=contentDetails,snippet', headers=headers).json()
+        # response = requests.get(BASE_URL, params=params).json()
 
-        apidata = req.json()
-        api_responses.append(apidata)
+        items = response.get("items", [])
 
-    for api_response in api_responses:
-        apientries = api_response.get('items', [])
-
-        for api_video_entry in apientries:
+        for api_video_entry in items:
             valid_api_ids.append(api_video_entry.get("id")) #add ids which were returned with the api call, means they are valid anyway
-    
+
             snippet = api_video_entry.get("snippet")
             video_title = snippet.get("title")
             uploader_name = snippet.get("channelTitle")
@@ -93,7 +119,7 @@ def get_playlist_info(playlist_url, unavailable_files = "unavailable.txt", delet
 
             if region_restriction and isinstance(region_restriction, dict):
                 if "blocked" in region_restriction and "IE" in region_restriction["blocked"]:
-                    with open(unavailable_files, "a") as f:
+                    with open(unavailable_file, "a") as f:
                         f.write(f"ID: {api_video_entry.get('id')}, Title: {video_title}\n")
                     continue
 
@@ -101,55 +127,107 @@ def get_playlist_info(playlist_url, unavailable_files = "unavailable.txt", delet
 
     for video_id in video_ids:
         if video_id not in valid_api_ids:
-            with open(deleted_files, "a") as f:
+            with open(deleted_file, "a") as f:
+                deleted_ids.append(video_id)
                 f.write(f"ID: {video_id}\n")
 
-    print("Completed processing.")
-    return available_videos
+    return available_videos, deleted_ids
 
 # This entire function is just to make sure that I won't be overwriting ANY files with the same name.
-# def check_titles(available_videos, output_file="duplicates.txt"):
-#     title_dict = {}
-#     output_data = []
-#     duplicates_found = False
+def check_titles(playlist_name, available_videos = []):
+    print("Checking videos for duplicate titles.")
+    output_file=f"duplicatesFound_{playlist_name}.txt"
 
-#     for video_id, entry in available_videos.items():
-#         title = entry['title']
+    title_dict = {}
+    output_data = []
+    duplicates_found = False
 
-#         if title in title_dict:
-#             duplicates_found = True
+    for video_id, entry in available_videos.items():
+        title = entry['title']
 
-#             if title_dict[title]['count'] == 1:
-#                 if {title_dict[title]['video_id']} == video_id:
-#                     continue
+        if title in title_dict:
+            duplicates_found = True
 
-#                 output_data.append(f"ORIGINAL - Video ID: {title_dict[title]['video_id']}, Title: {title}\n")
+            if title_dict[title]['count'] == 1:
+                if {title_dict[title]['video_id']} == video_id:
+                    continue
 
-#             output_data.append(f"DUPLICATE - Video ID: {video_id}, Title: {title}\n\n")
+                output_data.append(f"ORIGINAL - Video ID: {title_dict[title]['video_id']}, Title: {title}\n")
+
+            output_data.append(f"DUPLICATE - Video ID: {video_id}, Title: {title}\n\n")
             
-#             title_dict[title]['count'] += 1
+            title_dict[title]['count'] += 1
 
-#         else:
-#             title_dict[title] = {'video_id': video_id, 'count': 1}
+        else:
+            title_dict[title] = {'video_id': video_id, 'count': 1}
 
-#     if output_data:
-#         with open(output_file, "a") as f:
-#             f.writelines(output_data)
+    if output_data:
+        with open(output_file, "a") as f:
+            f.writelines(output_data)
 
-#     if duplicates_found:
-#         raise DuplicateTitle("Video title duplicate, cancelling process.")
+    if duplicates_found:
+        raise DuplicateTitle(f"Duplicate title(s) found in playlist '{playlist_name}'")
+    else:
+        print("No duplicates found.\n")
 
 # # Makes the .m3u8 file, takes in the processed entries from get_playlist_info
-# def generate_playlist(directory, playlist_name, ytapi_processed):
-#     playlist_pathfile = os.path.join(directory, f"{playlist_name}.m3u8")
-#     file_exists = os.path.exists(playlist_pathfile)
-    
-#     with open(playlist_pathfile, 'a', encoding='utf-8') as f:
-#         if not file_exists:
-#             f.write("#EXTM3U\n")
-        
-#         for entry in ytapi_processed:
-#             title, duration = entry
+def generate_playlist(directory, playlist_name, available_videos = [], video_ids = []):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    playlist_pathfile = os.path.join(directory, f"{playlist_name}.m3u8")
+    file_exists = os.path.exists(playlist_pathfile)
 
-#             f.write(f"#EXTINF:{int(duration)}, {title}\n")
-#             f.write(f"{title}.opus\n")
+    with open(playlist_pathfile, 'a', encoding='utf-8') as f:
+        if not file_exists:
+            f.write("#EXTM3U\n")
+        
+        for id, entry in available_videos.items():
+            title = entry["title"]
+            duration = entry["duration"]
+
+            if id in video_ids:
+                f.write(f"#EXTINF:{int(duration)}, {title}\n")
+                f.write(f"{title}.opus\n")
+
+def delete_deletedVidoes(playlist_url, headers, deleted_ids = []):
+    print("Deleting private and/or deleted videos from playlist.")
+
+    playlist_id = playlist_url.strip().replace("https://www.youtube.com/playlist?list=", "")
+    # print(playlist_id)
+
+    BASE_URL = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "fields": "items(id,snippet.resourceId.videoId),nextPageToken",
+        "maxResults": 50,
+        # "key": api_key
+    }
+
+    to_delete_ids = []
+    nextpage = None
+
+    while True:
+        if nextpage:
+            params["pageToken"] = nextpage
+
+        response = requests.get(BASE_URL, params=params, headers=headers).json()
+
+        for item in response.get("items", []):
+            snippet = item.get("snippet")
+            resource_id = snippet.get("resourceId")
+            short_id = resource_id.get("videoId")
+
+            if short_id in deleted_ids:
+                print(short_id)
+                to_delete_ids.append(item.get("id"))
+
+        nextpage = response.get("nextPageToken")
+        if not nextpage:
+            break
+
+    if to_delete_ids:
+        print(len(to_delete_ids))
+        for longID in to_delete_ids: 
+            # print(f"Deleting {video_ids_string} from playlist.")
+            response = requests.delete(f'https://www.googleapis.com/youtube/v3/playlistItems?id={longID}', headers=headers)
